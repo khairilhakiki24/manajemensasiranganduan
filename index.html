@@ -6,6 +6,11 @@
     <meta name="theme-color" content="#8b5cf6" id="meta-theme-color">
     <title>Manajemen Data Sasirangan Duan</title>
     
+    <!-- Link Manifest PWA -->
+    <link rel="manifest" href="./manifest.json">
+    <!-- Icon untuk iOS Apple (Opsional tapi disarankan) -->
+    <link rel="apple-touch-icon" href="assets/icon-192x192.png">
+
     <style>
         :root {
             --color-primary: #8b5cf6; 
@@ -57,21 +62,24 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Library Barcode & QR Scanner -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-darkBg dark:text-slate-200 font-sans h-screen flex overflow-hidden">
 
     <!-- INITIAL LOADER (SPLASH SCREEN) -->
     <div id="initial-loader" class="fixed inset-0 z-[200] bg-white dark:bg-darkBg flex flex-col items-center justify-center transition-opacity duration-500">
-        <div class="w-20 h-20 rounded-2xl bg-primary-custom text-white flex items-center justify-center font-bold text-4xl shadow-premium mb-8 relative">
-            <span class="absolute w-full h-full rounded-2xl bg-primary-custom animate-ping opacity-30"></span>
-            D
+        <div class="w-24 h-24 rounded-3xl bg-white dark:bg-darkSurface flex items-center justify-center shadow-premium mb-8 relative p-2 border border-slate-100 dark:border-slate-800">
+            <span class="absolute w-full h-full rounded-3xl bg-primary-custom animate-ping opacity-20"></span>
+            <!-- Logo menggunakan asset icon -->
+            <img src="assets/icon-192x192.png" onerror="this.src='https://via.placeholder.com/192x192.png?text=Logo'" class="w-full h-full object-contain relative z-10 rounded-2xl">
         </div>
         <div class="flex items-center gap-2 mb-2">
             <div class="w-3 h-3 rounded-full bg-primary-custom animate-bounce"></div>
             <div class="w-3 h-3 rounded-full bg-primary-custom animate-bounce" style="animation-delay: 0.1s"></div>
             <div class="w-3 h-3 rounded-full bg-primary-custom animate-bounce" style="animation-delay: 0.2s"></div>
         </div>
-        <p class="text-xs font-bold text-slate-500 tracking-[0.2em] uppercase mt-2">Menarik Data Terbaru...</p>
+        <p class="text-xs font-bold text-slate-500 tracking-[0.2em] uppercase mt-2">Menyiapkan Sistem...</p>
     </div>
 
     <div id="toast-container" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none"></div>
@@ -268,6 +276,23 @@
         <img id="preview-image-src" src="" class="max-w-full max-h-[80vh] rounded-xl relative z-10 object-contain animate-fade-in shadow-2xl">
     </div>
 
+    <!-- Modal Scanner Barcode -->
+    <div id="modal-scanner" class="fixed inset-0 z-[90] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/90 backdrop-blur-sm" onclick="closeScanner()"></div>
+        <div class="bg-white dark:bg-darkSurface w-full max-w-md rounded-3xl shadow-2xl relative z-10 flex flex-col overflow-hidden animate-fade-up">
+            <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-darkSurface relative z-20">
+                <h3 class="font-bold flex items-center gap-2"><i data-lucide="scan" class="w-5 h-5 text-primary-custom"></i> Scan Barcode SKU</h3>
+                <button onclick="closeScanner()" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-0 bg-black relative w-full h-[300px] flex items-center justify-center">
+                <div id="reader" width="100%" class="w-full"></div>
+            </div>
+            <div class="p-4 bg-slate-50 dark:bg-darkCard text-center">
+                <p class="text-xs text-slate-500">Arahkan kamera ke Barcode / QR Code produk untuk mencari data secara otomatis.</p>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ================= STATE & CONFIG =================
         let APP_STATE = {
@@ -286,6 +311,8 @@
         const listKategori = ['Premium', 'Semi Premium', 'Eksklusif', 'Sasirangan Katun Premium'];
         const listUkurBaju = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'ALLSIZE'];
         const listUkurKain = ['2 Meter', '2,25 Meter', '2,5 Meter', '3 Meter'];
+
+        let html5QrcodeScanner = null;
 
         // ================= INISIALISASI =================
         document.addEventListener('DOMContentLoaded', async () => {
@@ -517,19 +544,23 @@
                 filteredProducts = APP_STATE.products.filter(p => p.tipe === APP_STATE.activeFilter);
             }
 
+            // UI Header / Action Bar
             let html = `
                 <div class="flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
                     <div class="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-full md:w-auto">
                         <button onclick="setFilter('SEMUA')" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${APP_STATE.activeFilter === 'SEMUA' ? 'bg-white dark:bg-darkSurface shadow-sm text-primary-custom' : 'text-slate-500'}">Semua</button>
-                        <button onclick="setFilter('BAJU')" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${APP_STATE.activeFilter === 'BAJU' ? 'bg-white dark:bg-darkSurface shadow-sm text-primary-custom' : 'text-slate-500'}">Baju 👕</button>
-                        <button onclick="setFilter('KAIN')" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${APP_STATE.activeFilter === 'KAIN' ? 'bg-white dark:bg-darkSurface shadow-sm text-primary-custom' : 'text-slate-500'}">Kain 🧵</button>
+                        <button onclick="setFilter('BAJU')" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${APP_STATE.activeFilter === 'BAJU' ? 'bg-white dark:bg-darkSurface shadow-sm text-primary-custom' : 'text-slate-500'}">Baju</button>
+                        <button onclick="setFilter('KAIN')" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${APP_STATE.activeFilter === 'KAIN' ? 'bg-white dark:bg-darkSurface shadow-sm text-primary-custom' : 'text-slate-500'}">Kain</button>
                     </div>
 
                     <div class="flex gap-2 w-full md:w-auto">
                         <div class="relative flex-1 md:w-64">
                             <i data-lucide="search" class="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4"></i>
-                            <input type="text" id="search-product" placeholder="Cari SKU / Nama..." class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-darkSurface border border-slate-200 dark:border-slate-800 focus:ring-2 ring-primary-custom outline-none transition-all text-sm" onkeyup="filterSearch()">
+                            <input type="text" id="search-product" placeholder="Cari SKU / Nama..." class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-darkSurface border border-slate-200 dark:border-slate-800 focus:ring-2 ring-primary-custom outline-none transition-all text-sm shadow-sm" onkeyup="filterSearch()">
                         </div>
+                        <button onclick="openScanner()" class="py-2.5 px-3.5 rounded-xl bg-white dark:bg-darkSurface border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold flex items-center justify-center btn-press shadow-sm flex-shrink-0" title="Scan Barcode / QR">
+                            <i data-lucide="scan-line" class="w-5 h-5"></i>
+                        </button>
                         <button onclick="openModalProduct()" class="py-2.5 px-4 rounded-xl bg-primary-custom text-white font-bold flex items-center justify-center gap-2 btn-press shadow-sm flex-shrink-0">
                             <i data-lucide="plus" class="w-4 h-4"></i> <span class="hidden md:inline">Tambah</span>
                         </button>
@@ -637,14 +668,61 @@
             html += `</div>`;
 
             main.innerHTML = html; lucide.createIcons();
+            
+            // Re-apply search filter jika ada text di kotak input (berguna saat barcode terscan)
+            filterSearch();
         }
 
         function filterSearch() {
-            const query = document.getElementById('search-product').value.toLowerCase();
+            const searchEl = document.getElementById('search-product');
+            if(!searchEl) return;
+            const query = searchEl.value.toLowerCase();
+            
             document.querySelectorAll('.product-row').forEach(row => {
                 row.style.display = row.dataset.search.includes(query) ? '' : 'none';
             });
         }
+
+        // ================= BARCODE SCANNER LOGIC =================
+        function openScanner() {
+            document.getElementById('modal-scanner').classList.remove('hidden');
+            
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5Qrcode("reader");
+            }
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            // Paksa menggunakan kamera belakang jika tersedia di HP
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
+            .catch(err => {
+                console.error(err);
+                showToast("Kamera tidak dapat diakses / tidak diizinkan", "error");
+                closeScanner();
+            });
+        }
+
+        function closeScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    html5QrcodeScanner.clear();
+                }).catch(err => {
+                    console.error("Gagal menghentikan kamera", err);
+                });
+            }
+            document.getElementById('modal-scanner').classList.add('hidden');
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            closeScanner(); // Tutup kamera
+            
+            const searchInput = document.getElementById('search-product');
+            if(searchInput) {
+                searchInput.value = decodedText; // Masukkan teks ke kolom cari
+                filterSearch(); // Langsung filter daftarnya
+                showToast(`Barcode Ditemukan: ${decodedText}`, 'success');
+            }
+        }
+
 
         function renderSettings() {
             const main = document.getElementById('main-content');
@@ -821,6 +899,21 @@
             if(!url) return;
             document.getElementById('preview-image-src').src = url;
             document.getElementById('modal-image').classList.remove('hidden');
+        }
+    </script>
+
+    <script>
+        // Registrasi Service Worker untuk PWA agar bisa diinstall ke HP
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker PWA terdaftar dengan sukses!', registration.scope);
+                    })
+                    .catch(error => {
+                        console.error('Gagal mendaftarkan ServiceWorker:', error);
+                    });
+            });
         }
     </script>
 </body>
