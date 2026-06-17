@@ -31,7 +31,7 @@
         .glass-nav { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.05); }
         .dark .glass-nav { background: rgba(11, 17, 32, 0.85); border-top: 1px solid rgba(255,255,255,0.05); }
         
-        .pb-safe { padding-bottom: calc(100px + env(safe-area-inset-bottom, 20px)) !important; }
+        .pb-safe { padding-bottom: calc(120px + env(safe-area-inset-bottom, 20px)) !important; }
         
         .bg-primary-custom { background-color: var(--color-primary); }
         .text-primary-custom { color: var(--color-primary); }
@@ -295,6 +295,23 @@
         </div>
     </div>
 
+    <!-- Floating Bottom Bulk Action Bar -->
+    <div id="bulk-action-bar" class="fixed bottom-20 md:bottom-6 left-1/2 transform -translate-x-1/2 z-50 bg-white dark:bg-darkSurface border border-slate-200 dark:border-slate-800 shadow-premium px-6 py-4 rounded-3xl flex items-center gap-4 max-w-full w-[95%] md:w-auto hidden">
+        <span class="text-sm font-semibold text-slate-500 dark:text-slate-400 min-w-max"><span id="bulk-select-count" class="text-primary-custom font-bold font-mono">0</span> Terpilih</span>
+        <div class="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+        <div class="flex gap-2 overflow-x-auto py-1">
+            <button onclick="bulkMarkAsSold()" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-green-500 text-white font-bold text-xs btn-press shadow-sm hover:bg-green-600 shrink-0">
+                <i data-lucide="check" class="w-4 h-4"></i> Terjual
+            </button>
+            <button onclick="bulkUpdateShopee()" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-blue-500 text-white font-bold text-xs btn-press shadow-sm hover:bg-blue-600 shrink-0">
+                <i data-lucide="shopping-bag" class="w-4 h-4"></i> Sudah Upload
+            </button>
+            <button onclick="bulkDelete()" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500 text-white font-bold text-xs btn-press shadow-sm hover:bg-red-600 shrink-0">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> Hapus
+            </button>
+        </div>
+    </div>
+
     <script>
         // ================= STATE & CONFIG =================
         let APP_STATE = {
@@ -309,6 +326,8 @@
             currentView: 'dashboard',
             activeFilter: 'SEMUA' 
         };
+
+        let selectedSkus = []; // State untuk menampung item yang dicentang
 
         const listKategori = ['Premium', 'Semi Premium', 'Eksklusif', 'Sasirangan Katun Premium'];
         const listUkurBaju = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'ALLSIZE'];
@@ -340,9 +359,27 @@
             }
         }
 
+        // Penyeragaman format agar angka desimal titik diubah menjadi koma Indonesia (misal: 2.3 -> 2,3)
+        function formatUkuranDisplay(val) {
+            if (val === undefined || val === null) return '';
+            let str = val.toString().trim();
+            return str.replace(/^(\d+)\.(\d+)(\s*.*)?$/, function(match, g1, g2, g3) {
+                return g1 + ',' + g2 + (g3 || '');
+            });
+        }
+
         function loadState() {
             const saved = localStorage.getItem('manajemenDuanState');
-            if (saved) APP_STATE = { ...APP_STATE, ...JSON.parse(saved) };
+            if (saved) {
+                APP_STATE = { ...APP_STATE, ...JSON.parse(saved) };
+                // Pastikan ukuran di cache local juga diformat dengan benar
+                APP_STATE.products = APP_STATE.products.map(p => {
+                    if (p.ukuranPanjang !== undefined && p.ukuranPanjang !== null) {
+                        p.ukuranPanjang = formatUkuranDisplay(p.ukuranPanjang);
+                    }
+                    return p;
+                });
+            }
             if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !saved) APP_STATE.settings.darkMode = true;
         }
 
@@ -408,6 +445,8 @@
 
         function navigate(view) {
             APP_STATE.currentView = view;
+            selectedSkus = []; // Bersihkan pilihan centang saat ganti halaman
+            updateBulkActionBar();
             
             document.querySelectorAll('.nav-item').forEach(el => {
                 if (el.dataset.target === view) {
@@ -451,7 +490,13 @@
                 const result = await response.json();
                 
                 if (result.status === 'success') {
-                    APP_STATE.products = result.data;
+                    // Simpan data & rapikan format desimal
+                    APP_STATE.products = result.data.map(p => {
+                        if (p.ukuranPanjang !== undefined && p.ukuranPanjang !== null) {
+                            p.ukuranPanjang = formatUkuranDisplay(p.ukuranPanjang);
+                        }
+                        return p;
+                    });
                     saveState(); 
                     if(!isBackground && !isInitial) showToast('Data terbaru berhasil ditarik');
                     if(!isInitial && (APP_STATE.currentView === 'dashboard' || APP_STATE.currentView === 'products')) navigate(APP_STATE.currentView);
@@ -535,6 +580,8 @@
 
         function setFilter(tipe) {
             APP_STATE.activeFilter = tipe;
+            selectedSkus = []; // Reset pilihan saat ganti filter
+            updateBulkActionBar();
             renderProducts();
         }
 
@@ -581,10 +628,14 @@
                 main.innerHTML = html; lucide.createIcons(); return;
             }
 
+            // Desktop view dengan master checkbox untuk pilih semua
             html += `<div class="hidden md:block bg-white dark:bg-darkSurface rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden mb-8">
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-slate-50 dark:bg-darkCard text-slate-500 text-sm border-b border-slate-100 dark:border-slate-800">
+                            <th class="p-4 w-12 text-center">
+                                <input type="checkbox" id="select-all-products" onchange="toggleSelectAll(this)" class="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-primary-custom focus:ring-primary-custom">
+                            </th>
                             <th class="p-4 font-semibold">Foto & Info Utama</th>
                             <th class="p-4 font-semibold">Kategori & Status</th>
                             <th class="p-4 font-semibold">Harga Dasar</th>
@@ -603,6 +654,9 @@
 
                 html += `
                     <tr class="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-darkCard transition-colors product-row" data-search="${(p.sku+' '+p.nama).toLowerCase()}">
+                        <td class="p-4 w-12 text-center">
+                            <input type="checkbox" class="product-checkbox w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-primary-custom focus:ring-primary-custom" data-sku="${p.sku}" ${selectedSkus.includes(p.sku) ? 'checked' : ''} onchange="toggleSelectProduct('${p.sku}', this)">
+                        </td>
                         <td class="p-4 flex items-center gap-3">
                             <div class="relative w-14 h-14 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center cursor-pointer border border-slate-200 dark:border-slate-700 flex-shrink-0" onclick="previewImage('${p.foto}')">
                                 ${p.foto ? `<img src="${p.foto}" loading="lazy" class="w-full h-full object-cover">` : `<i data-lucide="image" class="w-5 h-5 text-slate-400"></i>`}
@@ -636,7 +690,7 @@
             });
             html += `</tbody></table></div>`;
 
-            // Mobile Card View
+            // Mobile Card View dengan checkbox pilihan
             html += `<div class="md:hidden flex flex-col gap-4 pb-4">`;
             filteredProducts.forEach(p => {
                 const isTerjual = p.status === 'Terjual' || p.stok <= 0;
@@ -647,6 +701,9 @@
 
                 html += `
                     <div class="bg-white dark:bg-darkSurface rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-800 flex gap-4 items-center product-row" data-search="${(p.sku+' '+p.nama).toLowerCase()}">
+                        <div class="flex-shrink-0 self-center">
+                            <input type="checkbox" class="product-checkbox w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-primary-custom focus:ring-primary-custom" data-sku="${p.sku}" ${selectedSkus.includes(p.sku) ? 'checked' : ''} onchange="toggleSelectProduct('${p.sku}', this)">
+                        </div>
                         <div class="relative w-20 h-20 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer" onclick="previewImage('${p.foto}')">
                             ${p.foto ? `<img src="${p.foto}" loading="lazy" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center"><i data-lucide="image" class="w-6 h-6 text-slate-400"></i></div>`}
                             ${isTerjual ? `<div class="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[1px]"><span class="bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider">TERJUAL</span></div>` : `<div class="absolute top-1 left-1"><span class="bg-green-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm shadow-sm">AKTIF</span></div>`}
@@ -673,6 +730,7 @@
             
             // Re-apply search filter jika ada text di kotak input (berguna saat barcode terscan)
             filterSearch();
+            updateSelectAllCheckboxState();
         }
 
         function filterSearch() {
@@ -683,6 +741,152 @@
             document.querySelectorAll('.product-row').forEach(row => {
                 row.style.display = row.dataset.search.includes(query) ? '' : 'none';
             });
+            
+            updateSelectAllCheckboxState();
+        }
+
+        // ================= LOGIKA PILIHAN MASSAL (CHECKBOX) =================
+        function toggleSelectProduct(sku, checkbox) {
+            if (checkbox.checked) {
+                if (!selectedSkus.includes(sku)) selectedSkus.push(sku);
+            } else {
+                selectedSkus = selectedSkus.filter(id => id !== sku);
+            }
+            updateBulkActionBar();
+            updateSelectAllCheckboxState();
+        }
+
+        function toggleSelectAll(masterCheckbox) {
+            let filteredProducts = APP_STATE.products;
+            if(APP_STATE.activeFilter !== 'SEMUA') {
+                filteredProducts = APP_STATE.products.filter(p => p.tipe === APP_STATE.activeFilter);
+            }
+            
+            const searchEl = document.getElementById('search-product');
+            if (searchEl && searchEl.value) {
+                const query = searchEl.value.toLowerCase();
+                filteredProducts = filteredProducts.filter(p => (p.sku+' '+p.nama).toLowerCase().includes(query));
+            }
+
+            if (masterCheckbox.checked) {
+                filteredProducts.forEach(p => {
+                    if (!selectedSkus.includes(p.sku)) selectedSkus.push(p.sku);
+                });
+            } else {
+                filteredProducts.forEach(p => {
+                    selectedSkus = selectedSkus.filter(id => id !== p.sku);
+                });
+            }
+
+            // Samakan centang visual di DOM
+            document.querySelectorAll('.product-checkbox').forEach(cb => {
+                cb.checked = masterCheckbox.checked;
+            });
+
+            updateBulkActionBar();
+        }
+
+        function updateSelectAllCheckboxState() {
+            const selectAllCb = document.getElementById('select-all-products');
+            if (!selectAllCb) return;
+
+            let filteredProducts = APP_STATE.products;
+            if(APP_STATE.activeFilter !== 'SEMUA') {
+                filteredProducts = APP_STATE.products.filter(p => p.tipe === APP_STATE.activeFilter);
+            }
+
+            const searchEl = document.getElementById('search-product');
+            if (searchEl && searchEl.value) {
+                const query = searchEl.value.toLowerCase();
+                filteredProducts = filteredProducts.filter(p => (p.sku+' '+p.nama).toLowerCase().includes(query));
+            }
+
+            if (filteredProducts.length === 0) {
+                selectAllCb.checked = false;
+                return;
+            }
+
+            const allSelected = filteredProducts.every(p => selectedSkus.includes(p.sku));
+            selectAllCb.checked = allSelected;
+        }
+
+        function updateBulkActionBar() {
+            const bar = document.getElementById('bulk-action-bar');
+            const countEl = document.getElementById('bulk-select-count');
+            if (!bar || !countEl) return;
+
+            if (selectedSkus.length > 0) {
+                bar.classList.remove('hidden');
+                countEl.innerText = selectedSkus.length;
+                lucide.createIcons(); // Supaya icon bottom bar dirender dengan benar
+            } else {
+                bar.classList.add('hidden');
+            }
+        }
+
+        // Kirim massal pengubahan status terjual ke server
+        async function bulkMarkAsSold() {
+            if (selectedSkus.length === 0) return;
+            showToast(`Memproses ${selectedSkus.length} produk...`, 'info');
+            
+            let count = 0;
+            for (let sku of selectedSkus) {
+                const p = APP_STATE.products.find(x => x.sku === sku);
+                if (p) {
+                    p.stok = 0;
+                    p.status = 'Terjual';
+                    p.statusShopee = 'Perlu Update';
+                    saveState();
+                    await sendPostAction('edit', { data: p });
+                    count++;
+                }
+            }
+            selectedSkus = [];
+            updateBulkActionBar();
+            renderProducts();
+            showToast(`Berhasil mengubah ${count} produk menjadi Terjual!`);
+            syncData();
+        }
+
+        // Kirim massal status upload Shopee ke server
+        async function bulkUpdateShopee() {
+            if (selectedSkus.length === 0) return;
+            showToast(`Mengubah status Shopee untuk ${selectedSkus.length} produk...`, 'info');
+            
+            let count = 0;
+            for (let sku of selectedSkus) {
+                const p = APP_STATE.products.find(x => x.sku === sku);
+                if (p) {
+                    p.statusShopee = 'Sudah Upload';
+                    saveState();
+                    await sendPostAction('edit', { data: p });
+                    count++;
+                }
+            }
+            selectedSkus = [];
+            updateBulkActionBar();
+            renderProducts();
+            showToast(`Berhasil mengubah status Shopee ${count} produk!`);
+            syncData();
+        }
+
+        // Kirim massal penghapusan ke server
+        async function bulkDelete() {
+            if (selectedSkus.length === 0) return;
+            if (!confirm(`Hapus permanen ${selectedSkus.length} produk dari database dan Google Sheets?`)) return;
+            
+            showToast(`Menghapus ${selectedSkus.length} produk...`, 'info');
+            let count = 0;
+            for (let sku of selectedSkus) {
+                APP_STATE.products = APP_STATE.products.filter(p => p.sku !== sku);
+                saveState();
+                await sendPostAction('delete', { data: { sku: sku } });
+                count++;
+            }
+            selectedSkus = [];
+            updateBulkActionBar();
+            renderProducts();
+            showToast(`Berhasil menghapus ${count} produk!`);
         }
 
         // ================= BARCODE SCANNER LOGIC =================
@@ -724,7 +928,6 @@
                 showToast(`Barcode Ditemukan: ${decodedText}`, 'success');
             }
         }
-
 
         function renderSettings() {
             const main = document.getElementById('main-content');
@@ -802,15 +1005,12 @@
 
             const tipe = document.getElementById('form-tipe').value;
             
-            // Logika baru untuk Ukuran agar memunculkan saran/histori dari yang diketik manual sebelumnya
-            // Ambil data ukuran dari database saat ini yang belum ada di array default
+            // Mengambil daftar histori ukuran dari cache agar dinamis
             let existingSizes = APP_STATE.products
                 .filter(p => p.tipe === tipe && p.ukuranPanjang)
-                .map(p => p.ukuranPanjang);
+                .map(p => formatUkuranDisplay(p.ukuranPanjang));
                 
             let defaultSizes = tipe === 'BAJU' ? listUkurBaju : listUkurKain;
-            
-            // Gabungkan default dan existing, lalu buang duplikat dengan Set()
             let allUniqueSizes = [...new Set([...defaultSizes, ...existingSizes])];
 
             const datalistUkuran = document.getElementById('list-ukuran-options');
@@ -846,7 +1046,7 @@
             
             document.getElementById('form-sub').value = p.subKategori;
             document.getElementById('form-nama').value = p.nama;
-            document.getElementById('form-ukuran').value = p.ukuranPanjang;
+            document.getElementById('form-ukuran').value = formatUkuranDisplay(p.ukuranPanjang);
             document.getElementById('form-stok').value = p.stok;
             document.getElementById('form-harga').value = p.hargaDasar;
             document.getElementById('form-foto').value = p.foto || '';
@@ -860,12 +1060,14 @@
 
         async function saveProduct() {
             const mode = document.getElementById('form-mode').value;
+            const rawUkuran = document.getElementById('form-ukuran').value;
+
             const payload = {
                 sku: document.getElementById('form-sku').value,
                 tipe: document.getElementById('form-tipe').value,
                 subKategori: document.getElementById('form-sub').value,
                 nama: document.getElementById('form-nama').value,
-                ukuranPanjang: document.getElementById('form-ukuran').value, // Ambil text apapun yang diketik
+                ukuranPanjang: formatUkuranDisplay(rawUkuran), // Penyeragaman desimal koma (Indonesian Locale) sebelum disimpan
                 stok: parseInt(document.getElementById('form-stok').value) || 0,
                 hargaDasar: parseInt(document.getElementById('form-harga').value) || 0,
                 foto: document.getElementById('form-foto').value,
