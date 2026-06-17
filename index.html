@@ -205,10 +205,12 @@
                     
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-semibold text-slate-500 mb-1">Ukuran / Panjang</label>
-                            <select id="form-ukuran" required class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom">
-                                <!-- Dinamis -->
-                            </select>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Ukuran / Panjang (Ketik Bebas)</label>
+                            <!-- Menggunakan datalist agar bisa diketik bebas tapi tetap ada pilihan suggestion -->
+                            <input type="text" id="form-ukuran" list="list-ukuran-options" required class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom" placeholder="Ketik atau pilih...">
+                            <datalist id="list-ukuran-options">
+                                <!-- Dinamis berdasarkan data sebelumnya dan default -->
+                            </datalist>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-500 mb-1">Stok Fisik</label>
@@ -799,9 +801,25 @@
             selectSub.innerHTML = listKategori.map(k => `<option value="${k}">${k}</option>`).join('');
 
             const tipe = document.getElementById('form-tipe').value;
-            const selectUkuran = document.getElementById('form-ukuran');
-            const listUkuran = tipe === 'BAJU' ? listUkurBaju : listUkurKain;
-            selectUkuran.innerHTML = listUkuran.map(u => `<option value="${u}">${u}</option>`).join('');
+            
+            // Logika baru untuk Ukuran agar memunculkan saran/histori dari yang diketik manual sebelumnya
+            // Ambil data ukuran dari database saat ini yang belum ada di array default
+            let existingSizes = APP_STATE.products
+                .filter(p => p.tipe === tipe && p.ukuranPanjang)
+                .map(p => p.ukuranPanjang);
+                
+            let defaultSizes = tipe === 'BAJU' ? listUkurBaju : listUkurKain;
+            
+            // Gabungkan default dan existing, lalu buang duplikat dengan Set()
+            let allUniqueSizes = [...new Set([...defaultSizes, ...existingSizes])];
+
+            const datalistUkuran = document.getElementById('list-ukuran-options');
+            datalistUkuran.innerHTML = allUniqueSizes.map(u => `<option value="${u}">`).join('');
+
+            // Kosongkan inputan jika tipe berubah (kecuali sedang dalam mode edit)
+            if(document.getElementById('form-mode').value !== 'edit') {
+                document.getElementById('form-ukuran').value = '';
+            }
         }
 
         function openModalProduct() {
@@ -847,7 +865,7 @@
                 tipe: document.getElementById('form-tipe').value,
                 subKategori: document.getElementById('form-sub').value,
                 nama: document.getElementById('form-nama').value,
-                ukuranPanjang: document.getElementById('form-ukuran').value,
+                ukuranPanjang: document.getElementById('form-ukuran').value, // Ambil text apapun yang diketik
                 stok: parseInt(document.getElementById('form-stok').value) || 0,
                 hargaDasar: parseInt(document.getElementById('form-harga').value) || 0,
                 foto: document.getElementById('form-foto').value,
@@ -860,6 +878,7 @@
             else if(payload.stok <= 0 && payload.status === 'Aktif') payload.status = 'Terjual';
 
             if(!payload.nama || payload.hargaDasar <= 0) return showToast('Lengkapi Nama dan Harga', 'error');
+            if(!payload.ukuranPanjang) return showToast('Lengkapi Ukuran/Panjang', 'error');
 
             closeModal('modal-product');
 
