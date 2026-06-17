@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#8b5cf6" id="meta-theme-color">
+    <title>Manajemen Data Sasirangan Duan</title>
+    
+    <style>
+        :root {
+            --color-primary: #8b5cf6; 
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        
+        .btn-press { transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s; }
+        .btn-press:active { transform: scale(0.95); }
+        @keyframes fadeSlideUp { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
+        .animate-fade-up { animation: fadeSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in { animation: fadeIn 0.3s ease forwards; }
+        
+        .glass-nav { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.05); }
+        .dark .glass-nav { background: rgba(11, 17, 32, 0.85); border-top: 1px solid rgba(255,255,255,0.05); }
+        
+        .pb-safe { padding-bottom: calc(100px + env(safe-area-inset-bottom, 20px)) !important; }
+        
+        .bg-primary-custom { background-color: var(--color-primary); }
+        .text-primary-custom { color: var(--color-primary); }
+        .border-primary-custom { border-color: var(--color-primary); }
+        .ring-primary-custom { --tw-ring-color: var(--color-primary); }
+
+        /* Teks Selection Putih dengan Background Primary */
+        ::selection { background-color: var(--color-primary); color: #ffffff; }
+    </style>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0B1120',
+                        darkSurface: '#1E293B',
+                        darkCard: '#0F172A'
+                    },
+                    boxShadow: { 'soft': '0 20px 40px -15px rgba(0,0,0,0.05)', 'premium': '0 10px 40px -10px rgba(0,0,0,0.1)' }
+                }
+            }
+        }
+    </script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-darkBg dark:text-slate-200 font-sans h-screen flex overflow-hidden">
+
+    <!-- INITIAL LOADER (SPLASH SCREEN) -->
+    <div id="initial-loader" class="fixed inset-0 z-[200] bg-white dark:bg-darkBg flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="w-20 h-20 rounded-2xl bg-primary-custom text-white flex items-center justify-center font-bold text-4xl shadow-premium mb-8 relative">
+            <span class="absolute w-full h-full rounded-2xl bg-primary-custom animate-ping opacity-30"></span>
+            D
+        </div>
+        <div class="flex items-center gap-2 mb-2">
+            <div class="w-3 h-3 rounded-full bg-primary-custom animate-bounce"></div>
+            <div class="w-3 h-3 rounded-full bg-primary-custom animate-bounce" style="animation-delay: 0.1s"></div>
+            <div class="w-3 h-3 rounded-full bg-primary-custom animate-bounce" style="animation-delay: 0.2s"></div>
+        </div>
+        <p class="text-xs font-bold text-slate-500 tracking-[0.2em] uppercase mt-2">Menarik Data Terbaru...</p>
+    </div>
+
+    <div id="toast-container" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden opacity-0 transition-opacity" onclick="toggleSidebar()"></div>
+    
+    <aside id="sidebar" class="fixed md:static inset-y-0 left-0 z-50 w-72 bg-white dark:bg-darkSurface border-r border-slate-200 dark:border-slate-800 transform -translate-x-full md:translate-x-0 transition-transform duration-300 flex flex-col">
+        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-3 flex-1 min-w-0">
+                <div class="w-8 h-8 flex-shrink-0 rounded-lg overflow-hidden flex items-center justify-center bg-slate-100 shadow-sm border border-slate-200 dark:border-slate-700" id="app-logo-container">
+                    <img src="" id="app-logo-img" class="w-full h-full object-cover hidden">
+                    <span id="app-logo-text" class="font-bold text-primary-custom">D</span>
+                </div>
+                <h1 class="text-lg font-bold truncate" id="app-brand-name">Manajemen Data Sasirangan Duan</h1>
+            </div>
+            <button class="md:hidden p-2 rounded-xl active:bg-slate-100 dark:active:bg-slate-800 flex-shrink-0 ml-2" onclick="toggleSidebar()">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+            <button onclick="navigate('dashboard')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all text-left font-medium" data-target="dashboard">
+                <i data-lucide="layout-dashboard" class="w-5 h-5"></i> Dashboard
+            </button>
+            <button onclick="navigate('products')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all text-left font-medium" data-target="products">
+                <i data-lucide="package" class="w-5 h-5"></i> Kelola Produk
+            </button>
+            <div class="pt-6 pb-2">
+                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Sistem</p>
+            </div>
+            <button onclick="navigate('settings')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all text-left font-medium" data-target="settings">
+                <i data-lucide="settings" class="w-5 h-5"></i> Pengaturan
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-slate-100 dark:border-slate-800">
+            <button onclick="syncData()" id="btn-sync-sidebar" class="w-full btn-press flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-200 transition-colors">
+                <i data-lucide="refresh-cw" class="w-4 h-4" id="sync-icon"></i> <span id="sync-text">Tarik Data Terbaru</span>
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+        <header class="md:hidden h-16 flex items-center justify-between px-4 glass-nav z-30 fixed top-0 w-full border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-3 min-w-0">
+                <button class="p-2 -ml-2 rounded-xl active:bg-slate-100 dark:active:bg-slate-800 flex-shrink-0" onclick="toggleSidebar()">
+                    <i data-lucide="menu" class="w-6 h-6"></i>
+                </button>
+                <h1 class="font-bold text-lg truncate" id="mobile-header-title">Dashboard</h1>
+            </div>
+            <button onclick="toggleTheme()" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 flex-shrink-0 ml-2">
+                <i data-lucide="moon" class="w-5 h-5"></i>
+            </button>
+        </header>
+
+        <header class="hidden md:flex h-16 items-center justify-between px-8 border-b border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-darkSurface/50 backdrop-blur-sm z-20">
+            <h2 class="text-2xl font-bold tracking-tight" id="desktop-header-title">Dashboard</h2>
+            <div class="flex items-center gap-4">
+                <div class="text-sm text-slate-500 font-medium px-4 py-2 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div> Koneksi Server Aktif
+                </div>
+                <button onclick="toggleTheme()" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">
+                    <i data-lucide="moon" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto pb-safe p-4 md:p-8 pt-20 md:pt-8 w-full" id="main-content">
+            <!-- Konten dirender via JS -->
+        </div>
+    </main>
+
+    <nav class="md:hidden fixed bottom-0 left-0 w-full glass-nav z-40 pb-[env(safe-area-inset-bottom)] border-t border-slate-200 dark:border-slate-800">
+        <div class="flex justify-around items-center h-16 px-2">
+            <button onclick="navigate('dashboard')" class="nav-item flex flex-col items-center justify-center w-full h-full text-slate-400" data-target="dashboard">
+                <i data-lucide="layout-dashboard" class="w-6 h-6 mb-1"></i>
+                <span class="text-[10px] font-medium">Dashboard</span>
+            </button>
+            <button onclick="navigate('products')" class="nav-item flex flex-col items-center justify-center w-full h-full text-slate-400" data-target="products">
+                <i data-lucide="package" class="w-6 h-6 mb-1"></i>
+                <span class="text-[10px] font-medium">Kelola Produk</span>
+            </button>
+            <button onclick="navigate('settings')" class="nav-item flex flex-col items-center justify-center w-full h-full text-slate-400" data-target="settings">
+                <i data-lucide="settings" class="w-6 h-6 mb-1"></i>
+                <span class="text-[10px] font-medium">Pengaturan</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Modal Form Produk -->
+    <div id="modal-product" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeModal('modal-product')"></div>
+        <div class="bg-white dark:bg-darkSurface w-full max-w-lg rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-fade-up">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                <h3 class="text-xl font-bold" id="modal-product-title">Tambah Produk Baru</h3>
+                <button onclick="closeModal('modal-product')" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <form id="form-product" class="space-y-4">
+                    <input type="hidden" id="form-mode" value="add">
+                    <input type="hidden" id="form-sku" value="">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Tipe</label>
+                            <select id="form-tipe" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom" onchange="updateFormOptions()">
+                                <option value="BAJU">Baju</option>
+                                <option value="KAIN">Kain</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Sub Kategori</label>
+                            <select id="form-sub" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom">
+                                <!-- Dinamis -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">Nama Produk</label>
+                        <input type="text" id="form-nama" required class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom" placeholder="Contoh: Kemeja Sasirangan...">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Ukuran / Panjang</label>
+                            <select id="form-ukuran" required class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom">
+                                <!-- Dinamis -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Stok Fisik</label>
+                            <input type="number" id="form-stok" required min="0" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom" placeholder="0">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">Harga Dasar (Rp)</label>
+                        <input type="number" id="form-harga" required min="0" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom" placeholder="150000">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">Link Foto (URL)</label>
+                        <input type="url" id="form-foto" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom" placeholder="https://contoh.com/foto.jpg">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800 pt-4 mt-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Status Ketersediaan</label>
+                            <select id="form-status" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom">
+                                <option value="Aktif">Aktif (Tersedia)</option>
+                                <option value="Terjual">Terjual (Habis)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Status Shopee</label>
+                            <select id="form-shopee" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom">
+                                <option value="Baru">Baru</option>
+                                <option value="Sudah Upload">Sudah Upload</option>
+                                <option value="Perlu Update">Perlu Update</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="p-6 border-t border-slate-100 dark:border-slate-800">
+                <button type="button" onclick="saveProduct()" class="w-full py-4 rounded-xl bg-primary-custom text-white font-bold btn-press shadow-premium flex justify-center items-center gap-2">
+                    <i data-lucide="save" class="w-5 h-5"></i> Simpan ke Database
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Konfirmasi Hapus -->
+    <div id="modal-delete" class="fixed inset-0 z-[70] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div class="bg-white dark:bg-darkSurface w-full max-w-sm rounded-3xl shadow-2xl relative z-10 p-6 text-center animate-fade-up">
+            <div class="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="trash-2" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">Hapus Produk?</h3>
+            <p class="text-slate-500 mb-6 text-sm">Data akan dihapus permanen dari sistem Manajemen & Google Sheets.</p>
+            <div class="flex gap-3">
+                <button onclick="closeModal('modal-delete')" class="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 font-medium btn-press">Batal</button>
+                <button id="btn-confirm-delete" class="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold btn-press shadow-lg shadow-red-500/30">Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Image Preview -->
+    <div id="modal-image" class="fixed inset-0 z-[80] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/90 backdrop-blur-sm" onclick="closeModal('modal-image')"></div>
+        <button onclick="closeModal('modal-image')" class="absolute top-4 right-4 text-white z-20 p-2"><i data-lucide="x" class="w-8 h-8"></i></button>
+        <img id="preview-image-src" src="" class="max-w-full max-h-[80vh] rounded-xl relative z-10 object-contain animate-fade-in shadow-2xl">
+    </div>
+
+    <script>
+        // ================= STATE & CONFIG =================
+        let APP_STATE = {
+            products: [],
+            settings: { 
+                brandName: 'Manajemen Data Sasirangan Duan', 
+                appLogo: '',
+                primaryColor: '#8b5cf6', 
+                gasUrl: 'https://script.google.com/macros/s/AKfycbyAKrwwIxGaDcJHJ7NifG6G-NWWuqeNDrP4QdzEhogk1gItQjpJ_LgSv9OeqwGpFtV0Ag/exec', 
+                darkMode: false 
+            },
+            currentView: 'dashboard',
+            activeFilter: 'SEMUA' 
+        };
+
+        const listKategori = ['Premium', 'Semi Premium', 'Eksklusif', 'Sasirangan Katun Premium'];
+        const listUkurBaju = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'ALLSIZE'];
+        const listUkurKain = ['2 Meter', '2,25 Meter', '2,5 Meter', '3 Meter'];
+
+        // ================= INISIALISASI =================
+        document.addEventListener('DOMContentLoaded', async () => {
+            loadState();
+            applyThemeSettings();
+            
+            // Saat pertama buka, tampilkan loader dan tunggu proses Sync
+            if (APP_STATE.settings.gasUrl) {
+                await syncData(true, true); // (isBackground=true, isInitial=true)
+            } else {
+                hideInitialLoader();
+            }
+            
+            lucide.createIcons();
+            navigate('dashboard');
+        });
+
+        function hideInitialLoader() {
+            const loader = document.getElementById('initial-loader');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 500);
+            }
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem('manajemenDuanState');
+            if (saved) APP_STATE = { ...APP_STATE, ...JSON.parse(saved) };
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !saved) APP_STATE.settings.darkMode = true;
+        }
+
+        function saveState() {
+            localStorage.setItem('manajemenDuanState', JSON.stringify(APP_STATE));
+        }
+
+        function formatRp(angka) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0);
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bg = type === 'success' ? 'bg-green-500' : (type === 'info' ? 'bg-blue-500' : 'bg-red-500');
+            toast.className = `${bg} text-white px-6 py-3 rounded-full shadow-premium text-sm font-medium flex items-center gap-2 animate-fade-up`;
+            toast.innerHTML = `<i data-lucide="${type === 'success' ? 'check-circle' : (type === 'info' ? 'info' : 'alert-circle')}" class="w-4 h-4"></i> ${message}`;
+            container.appendChild(toast);
+            lucide.createIcons();
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+
+        function applyThemeSettings() {
+            document.documentElement.style.setProperty('--color-primary', APP_STATE.settings.primaryColor);
+            document.getElementById('meta-theme-color').content = APP_STATE.settings.primaryColor;
+            document.getElementById('app-brand-name').innerText = APP_STATE.settings.brandName;
+            
+            const logoImg = document.getElementById('app-logo-img');
+            const logoText = document.getElementById('app-logo-text');
+            if(APP_STATE.settings.appLogo) {
+                logoImg.src = APP_STATE.settings.appLogo;
+                logoImg.classList.remove('hidden');
+                logoText.classList.add('hidden');
+            } else {
+                logoImg.classList.add('hidden');
+                logoText.classList.remove('hidden');
+                logoText.innerText = APP_STATE.settings.brandName.charAt(0).toUpperCase();
+            }
+
+            if (APP_STATE.settings.darkMode) document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
+        }
+
+        function toggleTheme() {
+            APP_STATE.settings.darkMode = !APP_STATE.settings.darkMode;
+            applyThemeSettings(); saveState();
+            if(APP_STATE.currentView === 'dashboard') renderDashboard();
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            }
+        }
+
+        function navigate(view) {
+            APP_STATE.currentView = view;
+            
+            document.querySelectorAll('.nav-item').forEach(el => {
+                if (el.dataset.target === view) {
+                    el.classList.add('bg-primary-custom/10', 'text-primary-custom', 'dark:bg-primary-custom/20');
+                    el.classList.remove('text-slate-500', 'text-slate-400');
+                } else {
+                    el.classList.remove('bg-primary-custom/10', 'text-primary-custom', 'dark:bg-primary-custom/20');
+                    if(el.closest('aside')) el.classList.add('text-slate-500');
+                    else el.classList.add('text-slate-400');
+                }
+            });
+
+            const titles = { 'dashboard': 'Dashboard', 'products': 'Kelola Produk', 'settings': 'Pengaturan Sistem' };
+            document.getElementById('mobile-header-title').innerText = titles[view];
+            document.getElementById('desktop-header-title').innerText = titles[view];
+
+            const main = document.getElementById('main-content');
+            main.innerHTML = ''; 
+            
+            if (view === 'dashboard') renderDashboard();
+            else if (view === 'products') renderProducts();
+            else if (view === 'settings') renderSettings();
+
+            if(window.innerWidth < 768) {
+                const sidebar = document.getElementById('sidebar');
+                if (!sidebar.classList.contains('-translate-x-full')) toggleSidebar();
+            }
+        }
+
+        async function syncData(isBackground = false, isInitial = false) {
+            if (!APP_STATE.settings.gasUrl) {
+                if (isInitial) hideInitialLoader();
+                return isBackground ? null : showToast('Harap atur Web App URL di Pengaturan', 'error');
+            }
+
+            const icon = document.getElementById('sync-icon');
+            if(icon) icon.classList.add('animate-spin');
+
+            try {
+                const response = await fetch(APP_STATE.settings.gasUrl);
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    APP_STATE.products = result.data;
+                    saveState(); 
+                    if(!isBackground && !isInitial) showToast('Data terbaru berhasil ditarik');
+                    if(!isInitial && (APP_STATE.currentView === 'dashboard' || APP_STATE.currentView === 'products')) navigate(APP_STATE.currentView);
+                } else throw new Error(result.message);
+            } catch (error) { 
+                if(!isBackground && !isInitial) showToast('Gagal menarik data dari server.', 'error'); 
+                if(isInitial) showToast('Mode Offline. Menggunakan data tersimpan terakhir.', 'info');
+            } 
+            finally { 
+                if(icon) icon.classList.remove('animate-spin'); 
+                if(isInitial) hideInitialLoader();
+            }
+        }
+
+        async function sendPostAction(actionName, payloadData) {
+            if (!APP_STATE.settings.gasUrl) return showToast('Aksi disimpan lokal. Atur URL API untuk sinkronisasi', 'error');
+            
+            showToast('Menyimpan ke server...', 'info');
+            try {
+                const response = await fetch(APP_STATE.settings.gasUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: actionName, ...payloadData })
+                });
+                
+                const result = await response.json();
+                if (result.status === 'success') return showToast(result.message);
+                else throw new Error(result.message);
+            } catch (error) { showToast('Gagal memproses ke database server.', 'error'); }
+        }
+
+        function renderDashboard() {
+            const main = document.getElementById('main-content');
+            
+            const totalBaju = APP_STATE.products.filter(p => p.tipe === 'BAJU').length;
+            const totalKain = APP_STATE.products.filter(p => p.tipe === 'KAIN').length;
+            const totalStok = APP_STATE.products.reduce((acc, p) => acc + (p.stok || 0), 0);
+
+            main.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-3xl shadow-lg text-white animate-fade-up" style="animation-delay: 0.1s">
+                        <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center mb-4"><i data-lucide="shirt" class="w-6 h-6"></i></div>
+                        <p class="text-sm font-medium opacity-90">Total Baju Sasirangan</p>
+                        <h3 class="text-3xl font-black mt-2">${totalBaju} <span class="text-lg font-normal opacity-80">Produk</span></h3>
+                    </div>
+                    <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 rounded-3xl shadow-lg text-white animate-fade-up" style="animation-delay: 0.2s">
+                        <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center mb-4"><i data-lucide="scissors" class="w-6 h-6"></i></div>
+                        <p class="text-sm font-medium opacity-90">Total Kain Lembaran</p>
+                        <h3 class="text-3xl font-black mt-2">${totalKain} <span class="text-lg font-normal opacity-80">Produk</span></h3>
+                    </div>
+                    <div class="bg-white dark:bg-darkSurface p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 animate-fade-up" style="animation-delay: 0.3s">
+                        <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center mb-4"><i data-lucide="layers" class="w-6 h-6"></i></div>
+                        <p class="text-sm text-slate-500 font-medium">Total Seluruh Stok Fisik Aktif</p>
+                        <h3 class="text-3xl font-black mt-2">${totalStok} <span class="text-lg font-normal text-slate-400">Pcs</span></h3>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-darkSurface p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 animate-fade-up" style="animation-delay: 0.4s">
+                    <h3 class="font-bold text-lg mb-6">Grafik Ketersediaan Inventori</h3>
+                    <div class="h-64 relative w-full">
+                        <canvas id="inventoryChart"></canvas>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+
+            setTimeout(() => {
+                const ctx = document.getElementById('inventoryChart').getContext('2d');
+                const textColor = APP_STATE.settings.darkMode ? '#cbd5e1' : '#475569';
+
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Baju Sasirangan', 'Kain Lembaran'],
+                        datasets: [{ data: [totalBaju, totalKain], backgroundColor: ['#3b82f6', '#10b981'], borderWidth: 0, hoverOffset: 4 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: textColor, padding: 20, font: { family: 'Inter', size: 13 } } } }, cutout: '75%' }
+                });
+            }, 100);
+        }
+
+        function setFilter(tipe) {
+            APP_STATE.activeFilter = tipe;
+            renderProducts();
+        }
+
+        function renderProducts() {
+            const main = document.getElementById('main-content');
+            
+            let filteredProducts = APP_STATE.products;
+            if(APP_STATE.activeFilter !== 'SEMUA') {
+                filteredProducts = APP_STATE.products.filter(p => p.tipe === APP_STATE.activeFilter);
+            }
+
+            let html = `
+                <div class="flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
+                    <div class="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-full md:w-auto">
+                        <button onclick="setFilter('SEMUA')" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${APP_STATE.activeFilter === 'SEMUA' ? 'bg-white dark:bg-darkSurface shadow-sm text-primary-custom' : 'text-slate-500'}">Semua</button>
+                        <button onclick="setFilter('BAJU')" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${APP_STATE.activeFilter === 'BAJU' ? 'bg-white dark:bg-darkSurface shadow-sm text-primary-custom' : 'text-slate-500'}">Baju 👕</button>
+                        <button onclick="setFilter('KAIN')" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${APP_STATE.activeFilter === 'KAIN' ? 'bg-white dark:bg-darkSurface shadow-sm text-primary-custom' : 'text-slate-500'}">Kain 🧵</button>
+                    </div>
+
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <div class="relative flex-1 md:w-64">
+                            <i data-lucide="search" class="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4"></i>
+                            <input type="text" id="search-product" placeholder="Cari SKU / Nama..." class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-darkSurface border border-slate-200 dark:border-slate-800 focus:ring-2 ring-primary-custom outline-none transition-all text-sm" onkeyup="filterSearch()">
+                        </div>
+                        <button onclick="openModalProduct()" class="py-2.5 px-4 rounded-xl bg-primary-custom text-white font-bold flex items-center justify-center gap-2 btn-press shadow-sm flex-shrink-0">
+                            <i data-lucide="plus" class="w-4 h-4"></i> <span class="hidden md:inline">Tambah</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            if (filteredProducts.length === 0) {
+                html += `
+                    <div class="flex flex-col items-center justify-center h-64 text-center">
+                        <div class="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 mb-4"><i data-lucide="database" class="w-10 h-10"></i></div>
+                        <h3 class="text-lg font-bold text-slate-600 dark:text-slate-300">Belum ada data ${APP_STATE.activeFilter !== 'SEMUA' ? APP_STATE.activeFilter : ''}</h3>
+                        <p class="text-slate-400 text-sm mt-1">Silakan Tambah Produk atau Tarik Data (Sync).</p>
+                    </div>
+                `;
+                main.innerHTML = html; lucide.createIcons(); return;
+            }
+
+            html += `<div class="hidden md:block bg-white dark:bg-darkSurface rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden mb-8">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 dark:bg-darkCard text-slate-500 text-sm border-b border-slate-100 dark:border-slate-800">
+                            <th class="p-4 font-semibold">Foto & Info Utama</th>
+                            <th class="p-4 font-semibold">Kategori & Status</th>
+                            <th class="p-4 font-semibold">Harga Dasar</th>
+                            <th class="p-4 font-semibold text-center">Stok Fisik</th>
+                            <th class="p-4 font-semibold text-right">Aksi Kelola</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            filteredProducts.forEach(p => {
+                const isTerjual = p.status === 'Terjual' || p.stok <= 0;
+                let badgeShopee = '';
+                if(p.statusShopee === 'Sudah Upload') badgeShopee = `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800"><div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Selesai Upload</span>`;
+                else if(p.statusShopee === 'Perlu Update') badgeShopee = `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded border border-orange-200 dark:border-orange-800"><div class="w-1.5 h-1.5 rounded-full bg-orange-500"></div> Perlu Update Shopee</span>`;
+                else badgeShopee = `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700"><div class="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Shopee: Baru</span>`;
+
+                html += `
+                    <tr class="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-darkCard transition-colors product-row" data-search="${(p.sku+' '+p.nama).toLowerCase()}">
+                        <td class="p-4 flex items-center gap-3">
+                            <div class="relative w-14 h-14 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center cursor-pointer border border-slate-200 dark:border-slate-700 flex-shrink-0" onclick="previewImage('${p.foto}')">
+                                ${p.foto ? `<img src="${p.foto}" loading="lazy" class="w-full h-full object-cover">` : `<i data-lucide="image" class="w-5 h-5 text-slate-400"></i>`}
+                                ${isTerjual ? `<div class="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[1px]"><span class="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded tracking-wider">TERJUAL</span></div>` : `<div class="absolute top-1 left-1"><span class="bg-green-500 text-white text-[7px] font-bold px-1 rounded-sm shadow-sm">AKTIF</span></div>`}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="font-bold text-sm truncate">${p.nama}</p>
+                                <p class="text-[10px] text-slate-400 font-mono mt-0.5 mb-1">${p.sku}</p>
+                                ${badgeShopee}
+                            </div>
+                        </td>
+                        <td class="p-4">
+                            <div class="text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 inline-block px-2 py-1 rounded">
+                                ${p.tipe} - ${p.ukuranPanjang}
+                            </div>
+                        </td>
+                        <td class="p-4 font-bold text-primary-custom">${formatRp(p.hargaDasar)}</td>
+                        <td class="p-4 text-center">
+                            <span class="${!isTerjual ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} px-3 py-1 rounded-full text-xs font-bold">
+                                ${p.stok}
+                            </span>
+                        </td>
+                        <td class="p-4 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <button onclick="editProduct('${p.sku}')" class="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 hover:bg-blue-100 transition-colors" title="Edit"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                                <button onclick="confirmDelete('${p.sku}')" class="p-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 hover:bg-red-100 transition-colors" title="Hapus"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            html += `</tbody></table></div>`;
+
+            // Mobile Card View
+            html += `<div class="md:hidden flex flex-col gap-4 pb-4">`;
+            filteredProducts.forEach(p => {
+                const isTerjual = p.status === 'Terjual' || p.stok <= 0;
+                let badgeShopee = '';
+                if(p.statusShopee === 'Sudah Upload') badgeShopee = `<span class="inline-flex items-center gap-1 text-[9px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded"><div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Sudah Upload</span>`;
+                else if(p.statusShopee === 'Perlu Update') badgeShopee = `<span class="inline-flex items-center gap-1 text-[9px] font-bold text-orange-600 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded"><div class="w-1.5 h-1.5 rounded-full bg-orange-500"></div> Perlu Update</span>`;
+                else badgeShopee = `<span class="inline-flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded"><div class="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Shopee Baru</span>`;
+
+                html += `
+                    <div class="bg-white dark:bg-darkSurface rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-800 flex gap-4 items-center product-row" data-search="${(p.sku+' '+p.nama).toLowerCase()}">
+                        <div class="relative w-20 h-20 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer" onclick="previewImage('${p.foto}')">
+                            ${p.foto ? `<img src="${p.foto}" loading="lazy" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center"><i data-lucide="image" class="w-6 h-6 text-slate-400"></i></div>`}
+                            ${isTerjual ? `<div class="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[1px]"><span class="bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider">TERJUAL</span></div>` : `<div class="absolute top-1 left-1"><span class="bg-green-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm shadow-sm">AKTIF</span></div>`}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[10px] text-slate-400 font-mono mb-0.5">${p.sku}</p>
+                            <h4 class="font-bold text-sm truncate leading-snug mb-1">${p.nama}</h4>
+                            <div class="mb-2">${badgeShopee}</div>
+                            <div class="flex justify-between items-end">
+                                <p class="font-bold text-primary-custom text-sm">${formatRp(p.hargaDasar)}</p>
+                                <span class="${!isTerjual ? 'text-green-600 bg-green-50 dark:bg-green-900/20 border-green-200' : 'text-red-500 bg-red-50 dark:bg-red-900/20 border-red-200'} text-[10px] font-bold px-2 py-1 rounded border dark:border-opacity-30">Sisa: ${p.stok}</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <button onclick="editProduct('${p.sku}')" class="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 active:scale-95"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                            <button onclick="confirmDelete('${p.sku}')" class="p-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 active:scale-95"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+
+            main.innerHTML = html; lucide.createIcons();
+        }
+
+        function filterSearch() {
+            const query = document.getElementById('search-product').value.toLowerCase();
+            document.querySelectorAll('.product-row').forEach(row => {
+                row.style.display = row.dataset.search.includes(query) ? '' : 'none';
+            });
+        }
+
+        function renderSettings() {
+            const main = document.getElementById('main-content');
+            
+            main.innerHTML = `
+                <div class="max-w-2xl mx-auto space-y-6">
+                    <div class="bg-white dark:bg-darkSurface p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
+                        <h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i data-lucide="monitor" class="w-5 h-5 text-primary-custom"></i> Tampilan Aplikasi</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">Nama Aplikasi</label>
+                                <input type="text" id="set-brand" value="${APP_STATE.settings.brandName}" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom" onchange="saveSettings()">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">URL Logo Aplikasi (Opsional)</label>
+                                <input type="url" id="set-logo" value="${APP_STATE.settings.appLogo}" placeholder="https://link-gambar-logo.jpg" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom" onchange="saveSettings()">
+                                <p class="text-[10px] text-slate-400 mt-1">Kosongkan jika ingin menggunakan logo inisial huruf.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">Warna Tema (Hex)</label>
+                                <div class="flex gap-3">
+                                    <input type="color" id="set-color" value="${APP_STATE.settings.primaryColor}" class="w-12 h-12 rounded-xl border-none cursor-pointer p-0" onchange="saveSettings()">
+                                    <input type="text" value="${APP_STATE.settings.primaryColor}" readonly class="flex-1 p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-darkSurface p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
+                        <h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i data-lucide="database" class="w-5 h-5 text-primary-custom"></i> Hubungkan ke Google Sheets</h3>
+                        <p class="text-xs text-slate-500 mb-4">Pastikan URL Web App Anda benar untuk menjaga sinkronisasi data yang mulus.</p>
+                        <input type="url" id="set-url" value="${APP_STATE.settings.gasUrl}" placeholder="https://script.google.com/macros/s/..." class="w-full p-3 rounded-xl bg-slate-50 dark:bg-darkCard border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 ring-primary-custom mb-4" onchange="saveSettings()">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="exportToExcel()" class="bg-white dark:bg-darkSurface p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center gap-2 btn-press">
+                            <div class="w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center"><i data-lucide="download" class="w-6 h-6"></i></div>
+                            <span class="font-semibold text-sm">Download Excel</span>
+                        </button>
+                        <button onclick="resetApp()" class="bg-white dark:bg-darkSurface p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center gap-2 btn-press">
+                            <div class="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center"><i data-lucide="power" class="w-6 h-6"></i></div>
+                            <span class="font-semibold text-sm text-red-600">Reset Aplikasi</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        function saveSettings() {
+            APP_STATE.settings.brandName = document.getElementById('set-brand').value || 'Manajemen Data Sasirangan Duan';
+            APP_STATE.settings.appLogo = document.getElementById('set-logo').value || '';
+            APP_STATE.settings.primaryColor = document.getElementById('set-color').value || '#8b5cf6';
+            APP_STATE.settings.gasUrl = document.getElementById('set-url').value;
+            saveState(); applyThemeSettings(); showToast('Pengaturan sistem disimpan');
+        }
+
+        function resetApp() {
+            if(confirm('Semua pengaturan lokal & data cache HP akan dihapus. Lanjutkan?')) {
+                localStorage.clear(); location.reload();
+            }
+        }
+
+        function exportToExcel() {
+            if(APP_STATE.products.length === 0) return showToast('Database Kosong', 'error');
+            const ws = XLSX.utils.json_to_sheet(APP_STATE.products);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "MasterData");
+            XLSX.writeFile(wb, `Data_Sasirangan_Backup.xlsx`);
+        }
+
+        function updateFormOptions() {
+            const selectSub = document.getElementById('form-sub');
+            selectSub.innerHTML = listKategori.map(k => `<option value="${k}">${k}</option>`).join('');
+
+            const tipe = document.getElementById('form-tipe').value;
+            const selectUkuran = document.getElementById('form-ukuran');
+            const listUkuran = tipe === 'BAJU' ? listUkurBaju : listUkurKain;
+            selectUkuran.innerHTML = listUkuran.map(u => `<option value="${u}">${u}</option>`).join('');
+        }
+
+        function openModalProduct() {
+            document.getElementById('form-product').reset();
+            document.getElementById('form-mode').value = 'add';
+            document.getElementById('form-sku').value = '';
+            document.getElementById('modal-product-title').innerText = 'Tambah Produk Baru';
+            updateFormOptions();
+            
+            document.getElementById('form-status').value = 'Aktif';
+            document.getElementById('form-shopee').value = 'Baru';
+            
+            document.getElementById('modal-product').classList.remove('hidden');
+        }
+
+        function editProduct(sku) {
+            const p = APP_STATE.products.find(x => x.sku === sku);
+            if(!p) return;
+
+            document.getElementById('form-mode').value = 'edit';
+            document.getElementById('form-sku').value = p.sku;
+            document.getElementById('form-tipe').value = p.tipe || (sku.startsWith('BJU') ? 'BAJU' : 'KAIN');
+            updateFormOptions();
+            
+            document.getElementById('form-sub').value = p.subKategori;
+            document.getElementById('form-nama').value = p.nama;
+            document.getElementById('form-ukuran').value = p.ukuranPanjang;
+            document.getElementById('form-stok').value = p.stok;
+            document.getElementById('form-harga').value = p.hargaDasar;
+            document.getElementById('form-foto').value = p.foto || '';
+            
+            document.getElementById('form-status').value = p.status === 'Terjual' || p.stok <= 0 ? 'Terjual' : 'Aktif';
+            document.getElementById('form-shopee').value = p.statusShopee || 'Baru';
+
+            document.getElementById('modal-product-title').innerText = 'Edit Detail Produk';
+            document.getElementById('modal-product').classList.remove('hidden');
+        }
+
+        async function saveProduct() {
+            const mode = document.getElementById('form-mode').value;
+            const payload = {
+                sku: document.getElementById('form-sku').value,
+                tipe: document.getElementById('form-tipe').value,
+                subKategori: document.getElementById('form-sub').value,
+                nama: document.getElementById('form-nama').value,
+                ukuranPanjang: document.getElementById('form-ukuran').value,
+                stok: parseInt(document.getElementById('form-stok').value) || 0,
+                hargaDasar: parseInt(document.getElementById('form-harga').value) || 0,
+                foto: document.getElementById('form-foto').value,
+                status: document.getElementById('form-status').value,
+                statusShopee: document.getElementById('form-shopee').value 
+            };
+
+            // Logika Otomatis: Jika diklik terjual, stok jadi 0
+            if(payload.status === 'Terjual') payload.stok = 0;
+            else if(payload.stok <= 0 && payload.status === 'Aktif') payload.status = 'Terjual';
+
+            if(!payload.nama || payload.hargaDasar <= 0) return showToast('Lengkapi Nama dan Harga', 'error');
+
+            closeModal('modal-product');
+
+            if (mode === 'add') {
+                payload.sku = `NEW-${new Date().getTime()}`;
+                APP_STATE.products.unshift(payload);
+            } else {
+                const idx = APP_STATE.products.findIndex(p => p.sku === payload.sku);
+                if (idx > -1) APP_STATE.products[idx] = { ...APP_STATE.products[idx], ...payload };
+            }
+            
+            saveState(); renderProducts();
+            
+            await sendPostAction(mode, { data: payload });
+            if(mode === 'add') syncData(); 
+        }
+
+        let deleteTargetSku = null;
+        function confirmDelete(sku) {
+            deleteTargetSku = sku;
+            document.getElementById('modal-delete').classList.remove('hidden');
+        }
+
+        document.getElementById('btn-confirm-delete').addEventListener('click', async () => {
+            if(!deleteTargetSku) return;
+            const sku = deleteTargetSku;
+            closeModal('modal-delete');
+            
+            APP_STATE.products = APP_STATE.products.filter(p => p.sku !== sku);
+            saveState(); renderProducts();
+            await sendPostAction('delete', { data: { sku: sku } });
+            deleteTargetSku = null;
+        });
+
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        function previewImage(url) {
+            if(!url) return;
+            document.getElementById('preview-image-src').src = url;
+            document.getElementById('modal-image').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
